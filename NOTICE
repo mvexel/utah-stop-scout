@@ -1,0 +1,6 @@
+Utah Stop Scout
+
+The Android OAuth session, secure token storage, and AppAuth integration in
+app/src/main/java/org/osmutah/utahbusstop/auth/ were adapted from the
+MapRoulette Mobile SDK Android example (Copyright 2026 Martijn van Exel),
+licensed under Apache License 2.0. See LICENSE.
