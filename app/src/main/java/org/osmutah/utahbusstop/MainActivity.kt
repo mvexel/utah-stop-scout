@@ -270,10 +270,12 @@ class MainActivity : Activity() {
         header.addView(titleRow)
         header.addView(segmented(), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(14) })
         if (locationIsApproximate && !loading) {
-            header.addView(card(radiusDp = 18, fill = Palette.WARN_BG, stroke = null) {
-                addView(label("Allow location to see stops around you.", 15, Palette.WARN_INK, bold = true))
-                addView(textLink("Turn on location") { requestLocationAndLoad() }.apply { gravity = Gravity.START or Gravity.CENTER_VERTICAL })
-            }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+            header.addView(label("Tap to turn on location and see stops around you", 14, Palette.WARN_INK, bold = true).apply {
+                background = rounded(Palette.WARN_BG, 18)
+                setPadding(dp(16), dp(10), dp(16), dp(10))
+                isClickable = true
+                setOnClickListener { requestLocationAndLoad() }
+            }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(10) })
         }
         var list: LinearLayout? = null
         var holder: FrameLayout? = null
