@@ -8,7 +8,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.hardware.GeomagneticField
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -76,7 +75,7 @@ private class AnswerFlow(val stop: NearbyStop, val task: Task, val client: MapRo
 
 /** A beginner-friendly walk-and-answer app for Utah bus stops. Challenge IDs never come from user input or search. */
 class MainActivity : Activity() {
-    private enum class Screen { WELCOME, RIDING, NEARBY, QUESTION, CONFIRM, THANKS }
+    private enum class Screen { WELCOME, RIDING, NEARBY, QUESTION, CONFIRM, THANKS, ABOUT }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val backend = Backend.STAGE
@@ -190,7 +189,7 @@ class MainActivity : Activity() {
                         if (screen == Screen.RIDING) showNearby()
                     }
                     !view.signedIn && screen == Screen.RIDING -> if (view.message != ridingMessage) showWelcome()
-                    !view.signedIn && screen != Screen.WELCOME && !submissionInFlight -> showWelcome()
+                    !view.signedIn && screen != Screen.WELCOME && screen != Screen.ABOUT && !submissionInFlight -> showWelcome()
                 }
             }
         }
@@ -231,6 +230,7 @@ class MainActivity : Activity() {
             })
             addView(label("Signing in uses a free OpenStreetMap account. New here? You can create one in a minute.", 14, Palette.MUTED).apply { gravity = Gravity.CENTER; setPadding(0, dp(14), 0, 0) })
             signInNotice?.let { addView(label(it, 13, Palette.MUTED).apply { gravity = Gravity.CENTER; setPadding(0, dp(10), 0, 0) }) }
+            addView(textLink("About Utah Stop Scout") { showAbout() }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         }, LinearLayout.LayoutParams(-1, -2))
         show(Screen.WELCOME, column)
     }
@@ -261,6 +261,14 @@ class MainActivity : Activity() {
         releaseMap()
         val root = FrameLayout(this).apply { setBackgroundColor(Palette.PAPER) }
         val header = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(12), dp(20), dp(8)) }
+        header.addView(LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            addView(BusBadge(this@MainActivity), LinearLayout.LayoutParams(dp(24), dp(24)))
+            addView(label("Utah Stop Scout", 13, Palette.GREEN, bold = true).apply {
+                setPadding(dp(8), 0, 0, 0)
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            addView(textLink("About") { showAbout() })
+        }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
         val titleRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         titles.addView(label("Stops near you", 28, bold = true))
@@ -271,7 +279,10 @@ class MainActivity : Activity() {
         header.addView(segmented(), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(14) })
         if (locationIsApproximate && !loading) {
             header.addView(label("Tap to turn on location and see stops around you", 14, Palette.WARN_INK, bold = true).apply {
-                background = rounded(Palette.WARN_BG, 18)
+                background = touchSurface(Palette.WARN_BG, 18)
+                minHeight = dp(48)
+                gravity = Gravity.CENTER_VERTICAL
+                isFocusable = true
                 setPadding(dp(16), dp(10), dp(16), dp(10))
                 isClickable = true
                 setOnClickListener { requestLocationAndLoad() }
@@ -281,10 +292,8 @@ class MainActivity : Activity() {
         var holder: FrameLayout? = null
         if (showMap) {
             root.addView(buildMapView(), FrameLayout.LayoutParams(-1, -1))
-            val fade = View(this).apply {
-                background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Palette.PAPER, 0x00F5F7F1))
-            }
-            root.addView(fade, FrameLayout.LayoutParams(-1, dp(230), Gravity.TOP))
+            // An opaque masthead keeps the map's labels from showing through the controls.
+            header.background = rounded(Palette.PAPER, 24)
             root.addView(header, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
             holder = FrameLayout(this)
             root.addView(holder, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply { setMargins(dp(16), 0, dp(16), dp(24)) })
@@ -305,20 +314,28 @@ class MainActivity : Activity() {
     }
 
     private fun segmented(): View = LinearLayout(this).apply {
-        background = rounded(0xFFE8EDE5.toInt(), 24)
+        background = rounded(Palette.GREEN_SOFT, 24)
         setPadding(dp(4), dp(4), dp(4), dp(4))
         fun segment(text: String, selected: Boolean, wantsMap: Boolean) = TextView(this@MainActivity).apply {
             this.text = text
             textSize = 16f
             gravity = Gravity.CENTER
-            setTextColor(if (selected) Palette.INK else Palette.MUTED)
+            setTextColor(if (selected) Palette.WHITE else Palette.MUTED)
             setTypeface(typeface, if (selected) Typeface.BOLD else Typeface.NORMAL)
-            if (selected) background = rounded(Palette.WHITE, 20)
+            background = touchSurface(if (selected) Palette.GREEN else Palette.GREEN_SOFT, 20, lightRipple = selected)
+            isSelected = selected
+            isFocusable = true
+            accessibilityDelegate = object : View.AccessibilityDelegate() {
+                override fun onInitializeAccessibilityNodeInfo(host: View, info: android.view.accessibility.AccessibilityNodeInfo) {
+                    super.onInitializeAccessibilityNodeInfo(host, info)
+                    info.className = "android.widget.Button"
+                }
+            }
             isClickable = true
             setOnClickListener { if (showMap != wantsMap) { showMap = wantsMap; showNearby() } }
         }
-        addView(segment("List", !showMap, false), LinearLayout.LayoutParams(0, dp(44), 1f))
-        addView(segment("Map", showMap, true), LinearLayout.LayoutParams(0, dp(44), 1f))
+        addView(segment("List", !showMap, false), LinearLayout.LayoutParams(0, dp(48), 1f))
+        addView(segment("Map", showMap, true), LinearLayout.LayoutParams(0, dp(48), 1f))
     }
 
     /** Redraws whichever of the list or the map card is on screen, without rebuilding the map. */
@@ -347,22 +364,27 @@ class MainActivity : Activity() {
     }
 
     private fun stopRow(stop: NearbyStop): View = LinearLayout(this).apply {
+        val style = stopProximityStyle(stop.distanceMeters, locationIsApproximate)
         gravity = Gravity.CENTER_VERTICAL
-        background = rounded(Palette.WHITE, 22, Palette.BORDER)
+        background = touchSurface(style.fill, 22, style.border)
         setPadding(dp(16), dp(16), dp(16), dp(16))
         isClickable = true
+        isFocusable = true
         setOnClickListener { openStop(stop) }
-        addView(directionArrow(stop), LinearLayout.LayoutParams(dp(56), dp(56)))
+        addView(directionArrow(stop, style), LinearLayout.LayoutParams(dp(56), dp(56)))
         addView(LinearLayout(this@MainActivity).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), 0, dp(8), 0)
-            addView(label(stopName(stop), 18, bold = true))
-            addView(label(howFar(stop), 15, Palette.MUTED))
+            addView(label(stopName(stop), 18, style.name, bold = true))
+            addView(label(howFar(stop), 15, style.distance).apply { setPadding(0, dp(3), 0, 0) })
         }, LinearLayout.LayoutParams(0, -2, 1f))
-        addView(label("›", 26, Palette.MUTED))
+        addView(label("›", 26, style.name))
     }
 
-    private fun directionArrow(stop: NearbyStop) = DirectionArrow(this, stop.bearingDegrees.toFloat()).also {
+    private fun directionArrow(stop: NearbyStop, style: StopProximityStyle? = null) = DirectionArrow(
+        this, stop.bearingDegrees.toFloat(),
+        style?.arrowBackground ?: Palette.GREEN_SOFT, style?.arrow ?: Palette.GREEN,
+    ).also {
         it.pointAt(shownHeading)
         arrows.add(it)
     }
@@ -383,7 +405,7 @@ class MainActivity : Activity() {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(14), 0, 0, 0)
                 addView(label(stopName(stop), 18, bold = true))
-                addView(label(howFar(stop), 15, Palette.MUTED))
+                addView(label(howFar(stop), 15, Palette.MUTED).apply { setPadding(0, dp(3), 0, 0) })
             }, LinearLayout.LayoutParams(0, -2, 1f))
             addView(row)
             addView(primaryButton("Help with this stop") { openStop(stop) }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
@@ -401,10 +423,11 @@ class MainActivity : Activity() {
         bar.addView(label("‹", 28, bold = true).apply {
             gravity = Gravity.CENTER
             contentDescription = "Back"
-            background = rounded(Palette.WHITE, 22, Palette.BORDER)
+            isFocusable = true
+            background = touchSurface(Palette.WHITE, 22, Palette.BORDER)
             isClickable = true
             setOnClickListener { goBackOneQuestion(current) }
-        }, LinearLayout.LayoutParams(dp(44), dp(44)))
+        }, LinearLayout.LayoutParams(dp(48), dp(48)))
         bar.addView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), 0, 0, 0)
@@ -434,7 +457,9 @@ class MainActivity : Activity() {
                 setTypeface(typeface, Typeface.BOLD)
                 setTextColor(if (picked) Palette.WHITE else Palette.INK)
                 stateListAnimator = null
-                background = rounded(if (picked) Palette.GREEN else Palette.WHITE, 24, if (picked) Palette.GREEN else Palette.BORDER)
+                background = touchSurface(if (picked) Palette.GREEN else Palette.WHITE, 24, if (picked) Palette.GREEN else Palette.BORDER, lightRipple = picked)
+                isSelected = picked
+                setPadding(dp(18), dp(14), dp(18), dp(14))
                 minHeight = dp(64)
                 minimumHeight = dp(64)
                 setOnClickListener {
@@ -520,6 +545,14 @@ class MainActivity : Activity() {
         if (next != null) column.addView(primaryButton("Help with the next stop") { openStop(next) }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(24) })
         column.addView(secondaryButton("Back to nearby stops") { showNearby() }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
         show(Screen.THANKS, column)
+    }
+
+    private fun showAbout() {
+        show(Screen.ABOUT, aboutScreen { closeAbout() })
+    }
+
+    private fun closeAbout() {
+        if (session.view.value.signedIn) showNearby() else showWelcome()
     }
 
     // ---- Finding stops -------------------------------------------------------------------------
@@ -768,6 +801,7 @@ class MainActivity : Activity() {
     override fun onBackPressed() {
         val current = flow
         when (screen) {
+            Screen.ABOUT -> closeAbout()
             Screen.QUESTION -> if (current != null) goBackOneQuestion(current) else showNearby()
             Screen.CONFIRM -> if (current != null) { current.index = current.questions.lastIndex; showQuestion() } else showNearby()
             Screen.THANKS -> showNearby()

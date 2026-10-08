@@ -1,6 +1,7 @@
 package org.osmutah.utahbusstop
 
 import android.content.Context
+import android.content.res.ColorStateList
 import android.animation.ValueAnimator
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -9,6 +10,7 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
 import android.view.Gravity
 import android.view.View
 import android.view.animation.LinearInterpolator
@@ -40,6 +42,14 @@ internal fun Context.rounded(color: Int, radiusDp: Int, strokeColor: Int? = null
     if (strokeColor != null) setStroke(dp(1), strokeColor)
 }
 
+/** Keep custom controls as responsive as native Android buttons, including keyboard focus. */
+internal fun Context.touchSurface(fill: Int, radiusDp: Int, stroke: Int? = null, lightRipple: Boolean = false) =
+    RippleDrawable(
+        ColorStateList.valueOf(if (lightRipple) 0x33FFFFFF else 0x222A7A4B),
+        rounded(fill, radiusDp, stroke),
+        rounded(Palette.WHITE, radiusDp),
+    )
+
 internal fun Context.label(value: String, sizeSp: Int, color: Int = Palette.INK, bold: Boolean = false) = TextView(this).apply {
     text = value
     textSize = sizeSp.toFloat()
@@ -62,7 +72,8 @@ private fun Context.pill(text: String, fill: Int, ink: Int, stroke: Int?, enable
     setTypeface(typeface, Typeface.BOLD)
     setTextColor(ink)
     stateListAnimator = null
-    background = rounded(fill, 28, stroke)
+    background = touchSurface(fill, 28, stroke, lightRipple = fill == Palette.GREEN)
+    setPadding(dp(20), dp(12), dp(20), dp(12))
     minimumHeight = dp(56)
     minHeight = dp(56)
     isEnabled = enabled
@@ -82,15 +93,42 @@ internal fun Context.textLink(text: String, onClick: () -> Unit) = TextView(this
     setTypeface(typeface, Typeface.BOLD)
     gravity = Gravity.CENTER
     minHeight = dp(48)
+    background = touchSurface(android.graphics.Color.TRANSPARENT, 16)
+    setPadding(dp(12), 0, dp(12), 0)
     isClickable = true
+    isFocusable = true
     setOnClickListener { onClick() }
 }
 
+/** A little bus-stop sign gives the masthead the same character as the map pins. */
+internal class BusBadge(context: Context) : View(context) {
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    init { importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO }
+
+    override fun onDraw(canvas: Canvas) {
+        val u = width / 28f
+        paint.color = Palette.GREEN
+        canvas.drawRoundRect(RectF(0f, 0f, width.toFloat(), height.toFloat()), 8f * u, 8f * u, paint)
+        paint.color = Palette.WHITE
+        canvas.drawRoundRect(RectF(6f * u, 6f * u, 22f * u, 21f * u), 3f * u, 3f * u, paint)
+        paint.color = Palette.GREEN
+        canvas.drawRoundRect(RectF(8f * u, 8f * u, 20f * u, 14f * u), u, u, paint)
+        canvas.drawCircle(10f * u, 19f * u, 1.5f * u, paint)
+        canvas.drawCircle(18f * u, 19f * u, 1.5f * u, paint)
+    }
+}
+
 /** A round badge whose arrow points toward a stop. [pointAt] turns it to match which way the phone is facing. */
-internal class DirectionArrow(context: Context, private val bearing: Float) : View(context) {
-    private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Palette.GREEN_SOFT }
+internal class DirectionArrow(
+    context: Context,
+    private val bearing: Float,
+    ringColor: Int = Palette.GREEN_SOFT,
+    arrowColor: Int = Palette.GREEN,
+) : View(context) {
+    private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ringColor }
     private val ink = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Palette.GREEN; style = Paint.Style.STROKE; strokeWidth = context.dpf(2.6f)
+        color = arrowColor; style = Paint.Style.STROKE; strokeWidth = context.dpf(2.6f)
         strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND
     }
 
